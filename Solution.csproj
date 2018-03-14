@@ -361,7 +361,9 @@
     <Compile Include="Assets\Scripts\Effects\Twirl.cs" />
     <Compile Include="Assets\Scripts\Effects\VignetteAndChromaticAberration.cs" />
     <Compile Include="Assets\Scripts\Effects\Vortex.cs" />
+    <Compile Include="Assets\Scripts\Extensions.cs" />
     <Compile Include="Assets\Scripts\GameCache.cs" />
+    <Compile Include="Assets\Scripts\Gizmos.cs" />
     <Compile Include="Assets\Scripts\IObstacle.cs" />
     <Compile Include="Assets\Scripts\MonoBehaviourCache.cs" />
     <Compile Include="Assets\Scripts\ProjectileControllerBase.cs" />

@@ -47,7 +47,7 @@ public abstract class TowerControllerEditor<TController> : Editor where TControl
 			{
 				Handles.Label(
 					controller.transform.position,
-					$"driver aim factor: {driver.FollowFactor:F4} MaxFF: {driver.MaxFollowFactor:F4} pt: {driver.PredictionTime:F2} (aiming: {driver.IsAiming})");
+					$"mf: {driver.CurrentPosLerp:F4} tm: {driver.PredictionTime:F3} root: {driver.Roots:F3} rlerp: {driver.RotationLerp:F4} (aiming: {driver.IsAiming})");
 			}
 
 		}

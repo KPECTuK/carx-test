@@ -4,104 +4,180 @@ using UnityEngine;
 // ReSharper disable once CheckNamespace
 public class CannonAutoDriver : IDriverStrategy
 {
-	private float MAX_ANGLE_SPEED_F = Mathf.PI / 12f;
+	private struct Aiming3D
+	{
+		public const float MAX_ANGLE_SPEED_F = Mathf.PI / 4f;
+
+		public Vector3 IntersectCoDir;
+		public Vector3 IntersectOpDir;
+		public float CurrentPosLerpFactor;
+		public float PredictPosLerpFactor;
+		public Vector3 ToMobDist;
+		public Vector3 ToMobPredictDir;
+		public Vector3 TowerDirection;
+		public float IntervalTillCollision;
+		public readonly float Roots;
+		public float RotationLerp;
+		public bool IsAiming;
+
+		private readonly Vector3 _cannonOrigin;
+		private readonly Vector3 _projectileSource;
+		private readonly Vector3 _projectileSpeed;
+		private readonly Vector3 _mobPos;
+		private readonly Vector3 _mobSpeed;
+		private readonly float _range;
+
+		public Aiming3D(MonsterController mobController, CannonTowerController towerController)
+		{
+			_cannonOrigin = towerController.Position;
+			_projectileSource = towerController.ShootOrigin.position;
+			_projectileSpeed = towerController.ProjectileSpeed;
+			_mobPos = mobController?.Position ?? Vector3.zero;
+			_mobSpeed = mobController?.Speed ?? Vector3.zero;
+			_range = towerController.Range;
+
+			IntersectCoDir = Vector2.zero;
+			IntersectOpDir = Vector2.zero;
+			ToMobDist = Vector2.zero;
+			ToMobPredictDir = Vector2.zero;
+			TowerDirection = towerController.transform.forward;
+			CurrentPosLerpFactor = 0f;
+			PredictPosLerpFactor = 0f;
+			IntervalTillCollision = float.MaxValue;
+			Roots = 0f;
+			RotationLerp = 0f;
+			IsAiming = false;
+		}
+
+		public void ComputeMobDirection()
+		{
+			var toTowerDist = _cannonOrigin - _mobPos;
+			var toPathDist = toTowerDist.Project(_mobSpeed) - toTowerDist;
+			var half = Mathf.Sqrt(_range * _range - toPathDist.sqrMagnitude);
+			IntersectOpDir = toPathDist - _mobSpeed.normalized * half;
+			IntersectCoDir = toPathDist + _mobSpeed.normalized * half;
+			CurrentPosLerpFactor = Mathf.Sqrt((IntersectCoDir + toTowerDist).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
+			ToMobDist = -toTowerDist;
+		}
+
+		public void ComputeMobPrediction()
+		{
+			//! also
+			var projMobSpd = _mobSpeed.ProjectToXZ();
+			var projProjSpd = -_projectileSpeed.ProjectToXZ();
+			var projToMob = (_mobPos - _projectileSource).ProjectToXZ();
+			var coAngle = Vector2.Dot(projMobSpd.normalized, projProjSpd.normalized);
+			IntervalTillCollision = Mathf.Sqrt((projMobSpd.sqrMagnitude + projProjSpd.sqrMagnitude - 2f * coAngle * projMobSpd.magnitude * projProjSpd.magnitude) / projToMob.sqrMagnitude);
+
+			//! not working
+			//IntervalTillCollision = Mathf.Sqrt((cannonSourceLocal - ToMobDist).sqrMagnitude / (_mobSpeed - _projectileSpeed).sqrMagnitude);
+			//Roots = (_projectileSpeed - _mobSpeed).sqrMagnitude - 4f * ProjectileControllerBase.VERTICAL_ACCELERATION_F * (cannonSourceLocal - ToMobDist).magnitude;
+			//IntervalTillCollision = Roots < 0
+			//	? IntervalTillCollision
+			//	: new[]
+			//	{
+			//		(-(_projectileSpeed - _mobSpeed).magnitude - Roots) / 2f * ProjectileControllerBase.VERTICAL_ACCELERATION_F,
+			//		(-(_projectileSpeed - _mobSpeed).magnitude + Roots) / 2f * ProjectileControllerBase.VERTICAL_ACCELERATION_F,
+			//	}.Max();
+
+			ToMobPredictDir = ToMobDist + _mobSpeed.normalized * IntervalTillCollision;
+			PredictPosLerpFactor = Mathf.Sqrt((IntersectCoDir - ToMobPredictDir).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
+		}
+
+		public void ComputeTowerDirection()
+		{
+			var intendedTowerDir = ToMobPredictDir.ProjectToXZ().ProjectToXZ(0);
+			var cos = Vector3.Dot(TowerDirection.normalized, intendedTowerDir.normalized);
+			RotationLerp = Mathf.Clamp01(Time.deltaTime * MAX_ANGLE_SPEED_F / Mathf.Acos(cos));
+			TowerDirection = Vector3.Lerp(TowerDirection, intendedTowerDir, RotationLerp).normalized;
+			IsAiming = cos > .99f;
+		}
+	}
 
 	private readonly CannonTowerController _towerController;
-
-	private Vector3 _direction;
+	private Aiming3D _desc;
 
 	public bool IsChange => true;
-	public bool IsAiming { get; private set; }
+	public bool IsAiming => _desc.IsAiming;
 
 #if UNITY_EDITOR
-	public float FollowFactor { get; private set; }
-	public float MaxFollowFactor { get; private set; }
-	public float PredictionTime { get; private set; }
+	public float CurrentPosLerp => _desc.CurrentPosLerpFactor;
+	public float PredictionTime => _desc.IntervalTillCollision;
+	public float Roots => _desc.Roots;
+	public float RotationLerp => _desc.RotationLerp;
 #endif
 
 	public CannonAutoDriver(CannonTowerController towerController)
 	{
 		_towerController = towerController;
-		_direction = _towerController.ShootOrigin.transform.forward;
-	}
-
-	private float ExitDistance(Vector2 targetProj, Vector2 targetSpeedProj, Vector2 originProj, float radius, out Vector2 firstIntersect, out Vector2 secondIntersect, out float @long, out float @short)
-	{
-		var toTarget = originProj - targetProj;
-		var cos = Vector2.Dot(toTarget.normalized, targetSpeedProj.normalized);
-		var sin = Mathf.Sqrt(1f - cos * cos);
-		var h = sin * toTarget.magnitude;
-		var half = Mathf.Sqrt(radius * radius - h * h);
-		var toExit = toTarget.magnitude * cos + half;
-		firstIntersect = targetSpeedProj + targetSpeedProj.normalized * toExit;
-		secondIntersect = firstIntersect - targetSpeedProj.normalized * half * half;
-		var fullMagnitude = (firstIntersect - secondIntersect).magnitude;
-		@long = (firstIntersect - targetSpeedProj).magnitude / fullMagnitude;
-		@short = (secondIntersect - targetSpeedProj).magnitude / fullMagnitude;
-		return toExit;
+		_desc = new Aiming3D(null, towerController);
 	}
 
 	public Vector3 GetIntendedDirection()
 	{
-		// monster with longest path
-		var targets = GameCache
+		var inRange = GameCache
 			.Instance
 			.FindActive<MonsterController>(_ => (_.Position - _towerController.Position).sqrMagnitude < _towerController.Range * _towerController.Range);
+
 		MonsterController target = null;
-		var maxExitDist = 0f;
-		Vector2 first;
-		Vector2 second;
-		float @long;
-		float @short;
-		foreach(var controller in targets)
+		var desc = new Aiming3D();
+		foreach(var controller in inRange)
 		{
-			var currentMax = ExitDistance(
-				new Vector2(controller.Position.x, controller.Position.z),
-				new Vector2(controller.Speed.x, controller.Speed.z),
-				new Vector2(_towerController.Position.x, _towerController.Position.z),
-				_towerController.Range,
-				out first,
-				out second,
-				out @long,
-				out @short);
-			if(currentMax < maxExitDist)
+			var currentDesc = new Aiming3D(controller, _towerController);
+			currentDesc.ComputeMobDirection();
+
+			if((ReferenceEquals(null, target)
+				? 0f
+				: desc.CurrentPosLerpFactor) > currentDesc.CurrentPosLerpFactor)
 			{
 				continue;
 			}
 
 			target = controller;
-			maxExitDist = currentMax;
+			desc = currentDesc;
 		}
 
-		if(ReferenceEquals(null, target))
+		if(!ReferenceEquals(null, target))
 		{
-			return _direction;
+			_desc = desc;
+			_desc.ComputeMobPrediction();
+			_desc.ComputeTowerDirection();
 		}
-
-		// strict direction
-
-		var targetPosProjected = new Vector3(target.Position.x, _towerController.Position.y, target.Position.z);
-		var predictionTime = (_towerController.ProjectileSpeed * _towerController.ShootOrigin.forward - target.Speed).magnitude / 
-			(target.Position - _towerController.ShootOrigin.position).magnitude;
-		var targetDirection = targetPosProjected - _towerController.Position + target.Speed * predictionTime * .3f;
-
-		var targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
-		var currentFullRotation = Quaternion.Angle(_towerController.transform.rotation, targetRotation) * Mathf.Deg2Rad;
-
-		var followFactor = Time.deltaTime * MAX_ANGLE_SPEED_F / currentFullRotation;
-		var result = Vector3.Lerp(_towerController.transform.forward, targetDirection, followFactor);
-
-		IsAiming = Mathf.Abs(Vector3.Dot(targetDirection.normalized, result.normalized)) > .99f;
-		_direction = targetDirection;
 
 #if UNITY_EDITOR
-		FollowFactor = followFactor;
-		MaxFollowFactor = Mathf.Max(FollowFactor, MaxFollowFactor);
-		PredictionTime = predictionTime;
-		Debug.DrawLine(target.Position, target.Position + target.Speed.normalized * maxExitDist, IsAiming ? Color.magenta : Color.yellow);
-		Debug.DrawLine(_towerController.ShootOrigin.position, _towerController.ShootOrigin.position + targetDirection, Color.yellow);
-		Debug.DrawLine(target.Position, target.Position + target.Speed * predictionTime, Color.yellow);
+		if(!ReferenceEquals(null, target))
+		{
+			var aimColor = IsAiming
+				? Color.red
+				: Color.gray;
+
+			// target path
+			Debug.DrawLine(
+				target.Position,
+				// check both
+				target.Position + (_desc.IntersectCoDir - _desc.IntersectOpDir) * _desc.CurrentPosLerpFactor,
+				aimColor);
+
+			Gizmos.Point(_towerController.Position + _desc.IntersectCoDir, Color.white, .1f);
+			Gizmos.Point(_towerController.Position + _desc.IntersectOpDir, Color.black, .1f);
+
+			// aiming
+			Debug.DrawLine(
+				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y),
+				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y) + _desc.ToMobDist,
+				Color.gray);
+			Debug.DrawLine(
+				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y),
+				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y) + _desc.ToMobPredictDir,
+				aimColor);
+		}
+
+		// tower direction
+		Debug.DrawLine(
+			_towerController.Position,
+			_towerController.Position + _desc.TowerDirection,
+			Color.yellow);
 #endif
-		return result;
+		return _desc.TowerDirection;
 	}
 }

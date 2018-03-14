@@ -4,7 +4,8 @@ using UnityEngine;
 // ReSharper disable once CheckNamespace
 public abstract class ProjectileControllerBase : MonoBehaviourCache
 {
-	private const float VERTICAL_ACCELERATION_F = 9.8f;
+	public const float VERTICAL_ACCELERATION_F = 9.8f;
+	//public const float VERTICAL_ACCELERATION_F = 0f;
 
 	protected abstract int Damage { get; }
 	protected abstract Vector3 Speed { get; }

@@ -17,7 +17,7 @@ public abstract class TowerControllerBase : MonoBehaviourCache, IObstacle
 		//! TODO smth
 		if(Driver.IsChange)
 		{
-			transform.localRotation = Quaternion.LookRotation(Driver.GetIntendedDirection(), transform.up);
+			transform.rotation = Quaternion.LookRotation(Driver.GetIntendedDirection(), transform.up);
 		}
 
 		OnLateUpdate();

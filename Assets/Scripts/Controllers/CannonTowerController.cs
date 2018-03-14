@@ -5,8 +5,8 @@ using UnityEngine;
 // ReSharper disable once CheckNamespace
 public class CannonTowerController : TowerControllerBase
 {
-	private const float INTERVAL_F = .7f;
-	private const float RANGE_F = 10f;
+	private const float INTERVAL_F = .5f;
+	private const float RANGE_F = 20f;
 
 #pragma warning disable 649
 	[SerializeField] private Transform _shootOrigin;
@@ -17,7 +17,7 @@ public class CannonTowerController : TowerControllerBase
 	public override IDriverStrategy Driver { get; protected set; }
 	public override float Range => RANGE_F;
 	public Transform ShootOrigin => _shootOrigin;
-	public float ProjectileSpeed = CannonProjectileController.SPEED_F;
+	public Vector3 ProjectileSpeed => _shootOrigin.forward.normalized * CannonProjectileController.SPEED_F;
 
 	// ReSharper disable once UnusedMember.Local
 	protected override void OnLateUpdate()

@@ -6,7 +6,7 @@ using UnityEngine;
 public class MonsterController : MonoBehaviourCache, IObstacle
 {
 	private const int MAX_HITS_I = 30;
-	private const float SPEED_F = 5f;
+	private const float SPEED_F = 8f;
 
 	public GameObject Target;
 
@@ -59,12 +59,15 @@ public class MonsterController : MonoBehaviourCache, IObstacle
 
 		transform.Translate(transition);
 
+#if UNITY_EDITOR
+		// hit points
 		var leftPoint = transform.position + Vector3.up * 3f + Vector3.left;
 		var rightPoint = transform.position + Vector3.up * 3f + Vector3.right;
 		var full = (leftPoint - rightPoint) * CurrentHits / MAX_HITS_I;
 		var empty = (rightPoint - leftPoint) * (MAX_HITS_I - CurrentHits) / MAX_HITS_I;
+
 		Debug.DrawLine(rightPoint, rightPoint + full, Color.red);
 		Debug.DrawLine(leftPoint, leftPoint + empty, Color.grey);
-
+#endif
 	}
 }

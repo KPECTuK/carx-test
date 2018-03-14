@@ -7,9 +7,9 @@ using UnityEngine;
 [CreateAssetMenu]
 public class GameCache : ScriptableObject
 {
-	public GameObject MonsterPrefab;
-	public GameObject GuidedProjectilePrefab;
-	public GameObject CannonProjectilePrefab;
+	[SerializeField] private GameObject _monsterPrefab;
+	[SerializeField] private GameObject _guidedProjectilePrefab;
+	[SerializeField] private GameObject _cannonProjectilePrefab;
 
 	private readonly ListDictionary _cache = new ListDictionary();
 	private readonly ListDictionary _actives = new ListDictionary();
@@ -92,7 +92,7 @@ public class GameCache : ScriptableObject
 				? _cache[key] as Stack<GameObject>
 				: null;
 
-		var @object = 
+		var @object =
 			cache != null && cache.Count > 0
 				? cache.Pop()
 				: CreateInstanceByController<TController>();
@@ -135,38 +135,38 @@ public class GameCache : ScriptableObject
 		GameObject prefab = null;
 		if(typeof(TController) == typeof(MonsterController))
 		{
-			if(MonsterPrefab == null)
+			if(_monsterPrefab == null)
 			{
 				prefab = CreatePrimitiveHidden(PrimitiveType.Capsule);
-				MonsterPrefab = prefab;
+				_monsterPrefab = prefab;
 			}
 			else
 			{
-				prefab = MonsterPrefab;
+				prefab = _monsterPrefab;
 			}
 		}
 		if(typeof(TController) == typeof(GuidedProjectileController))
 		{
-			if(GuidedProjectilePrefab == null)
+			if(_guidedProjectilePrefab == null)
 			{
 				prefab = CreatePrimitiveHidden(PrimitiveType.Sphere);
-				GuidedProjectilePrefab = prefab;
+				_guidedProjectilePrefab = prefab;
 			}
 			else
 			{
-				prefab = GuidedProjectilePrefab;
+				prefab = _guidedProjectilePrefab;
 			}
 		}
 		if(typeof(TController) == typeof(CannonProjectileController))
 		{
-			if(CannonProjectilePrefab == null)
+			if(_cannonProjectilePrefab == null)
 			{
 				prefab = CreatePrimitiveHidden(PrimitiveType.Sphere);
-				CannonProjectilePrefab = prefab;
+				_cannonProjectilePrefab = prefab;
 			}
 			else
 			{
-				prefab = CannonProjectilePrefab;
+				prefab = _cannonProjectilePrefab;
 			}
 		}
 
@@ -184,14 +184,5 @@ public class GameCache : ScriptableObject
 			renderer.enabled = false;
 		}
 		return instance;
-	}
-}
-
-public static class Extensions
-{
-	public static TComponent GetOrAddComponent<TComponent>(this GameObject @object) where TComponent : MonoBehaviour
-	{
-		//! null object
-		return @object.GetComponent<TComponent>() ?? @object.AddComponent<TComponent>();
 	}
 }
