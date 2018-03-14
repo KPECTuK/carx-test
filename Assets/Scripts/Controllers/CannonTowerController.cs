@@ -17,7 +17,7 @@ public class CannonTowerController : TowerControllerBase
 	public override IDriverStrategy Driver { get; protected set; }
 	public override float Range => RANGE_F;
 	public Transform ShootOrigin => _shootOrigin;
-	public Vector3 ProjectileSpeed => _shootOrigin.forward.normalized * CannonProjectileController.SPEED_F;
+	public Vector3 ProjectileInitialSpeed => _shootOrigin.transform.forward * GameCache.Instance.CannonProjectileHorizontalSpeed;
 
 	// ReSharper disable once UnusedMember.Local
 	protected override void OnLateUpdate()
@@ -34,6 +34,9 @@ public class CannonTowerController : TowerControllerBase
 		{
 			return;
 		}
+
+		Debug.DrawLine(transform.position, transform.position + transform.forward * 10f, Color.yellow);
+		Debug.DrawLine(_shootOrigin.position, _shootOrigin.position + _shootOrigin.forward * 10f, Color.yellow);
 
 		if(!Driver.IsAiming)
 		{

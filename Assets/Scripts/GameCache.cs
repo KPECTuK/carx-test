@@ -11,6 +11,15 @@ public class GameCache : ScriptableObject
 	[SerializeField] private GameObject _guidedProjectilePrefab;
 	[SerializeField] private GameObject _cannonProjectilePrefab;
 
+	[Header("--")]
+	// ReSharper disable UnassignedField.Global
+	public float MonsterSpeed;
+	public int MonsterTotalHist;
+	public float CannonProjectileHorizontalSpeed;
+	public float TowerRotationSpeedLimit;
+	public float SpawnInterval;
+	// ReSharper restore UnassignedField.Global
+
 	private readonly ListDictionary _cache = new ListDictionary();
 	private readonly ListDictionary _actives = new ListDictionary();
 

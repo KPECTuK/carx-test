@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 
 // ReSharper disable once UnusedMember.Global
@@ -6,8 +7,6 @@ public class CannonAutoDriver : IDriverStrategy
 {
 	private struct Aiming3D
 	{
-		public const float MAX_ANGLE_SPEED_F = Mathf.PI / 4f;
-
 		public Vector3 IntersectCoDir;
 		public Vector3 IntersectOpDir;
 		public float CurrentPosLerpFactor;
@@ -16,7 +15,7 @@ public class CannonAutoDriver : IDriverStrategy
 		public Vector3 ToMobPredictDir;
 		public Vector3 TowerDirection;
 		public float IntervalTillCollision;
-		public readonly float Roots;
+		public float Roots;
 		public float RotationLerp;
 		public bool IsAiming;
 
@@ -31,7 +30,7 @@ public class CannonAutoDriver : IDriverStrategy
 		{
 			_cannonOrigin = towerController.Position;
 			_projectileSource = towerController.ShootOrigin.position;
-			_projectileSpeed = towerController.ProjectileSpeed;
+			_projectileSpeed = towerController.ProjectileInitialSpeed;
 			_mobPos = mobController?.Position ?? Vector3.zero;
 			_mobSpeed = mobController?.Speed ?? Vector3.zero;
 			_range = towerController.Range;
@@ -60,25 +59,28 @@ public class CannonAutoDriver : IDriverStrategy
 			ToMobDist = -toTowerDist;
 		}
 
+		public void ComputeMobPredictionOld()
+		{
+			IntervalTillCollision = (_projectileSpeed - _mobSpeed).ProjectToXZ().magnitude / ToMobDist.ProjectToXZ().magnitude;
+			IntervalTillCollision = (_projectileSpeed - _mobSpeed).magnitude / ToMobDist.magnitude;
+
+			for(var index = 0; index < 100; index++)
+			{
+				ToMobPredictDir = ToMobDist + _mobSpeed.normalized * IntervalTillCollision;
+				IntervalTillCollision = (ToMobPredictDir - _projectileSource).magnitude / _projectileSpeed.magnitude;
+			}
+
+			PredictPosLerpFactor = Mathf.Sqrt((IntersectCoDir - ToMobPredictDir).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
+		}
+
 		public void ComputeMobPrediction()
 		{
-			//! also
 			var projMobSpd = _mobSpeed.ProjectToXZ();
 			var projProjSpd = -_projectileSpeed.ProjectToXZ();
 			var projToMob = (_mobPos - _projectileSource).ProjectToXZ();
 			var coAngle = Vector2.Dot(projMobSpd.normalized, projProjSpd.normalized);
-			IntervalTillCollision = Mathf.Sqrt((projMobSpd.sqrMagnitude + projProjSpd.sqrMagnitude - 2f * coAngle * projMobSpd.magnitude * projProjSpd.magnitude) / projToMob.sqrMagnitude);
 
-			//! not working
-			//IntervalTillCollision = Mathf.Sqrt((cannonSourceLocal - ToMobDist).sqrMagnitude / (_mobSpeed - _projectileSpeed).sqrMagnitude);
-			//Roots = (_projectileSpeed - _mobSpeed).sqrMagnitude - 4f * ProjectileControllerBase.VERTICAL_ACCELERATION_F * (cannonSourceLocal - ToMobDist).magnitude;
-			//IntervalTillCollision = Roots < 0
-			//	? IntervalTillCollision
-			//	: new[]
-			//	{
-			//		(-(_projectileSpeed - _mobSpeed).magnitude - Roots) / 2f * ProjectileControllerBase.VERTICAL_ACCELERATION_F,
-			//		(-(_projectileSpeed - _mobSpeed).magnitude + Roots) / 2f * ProjectileControllerBase.VERTICAL_ACCELERATION_F,
-			//	}.Max();
+			IntervalTillCollision = Mathf.Sqrt((projMobSpd.sqrMagnitude + projProjSpd.sqrMagnitude - 2f * coAngle * projMobSpd.magnitude * projProjSpd.magnitude) / projToMob.sqrMagnitude);
 
 			ToMobPredictDir = ToMobDist + _mobSpeed.normalized * IntervalTillCollision;
 			PredictPosLerpFactor = Mathf.Sqrt((IntersectCoDir - ToMobPredictDir).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
@@ -88,7 +90,7 @@ public class CannonAutoDriver : IDriverStrategy
 		{
 			var intendedTowerDir = ToMobPredictDir.ProjectToXZ().ProjectToXZ(0);
 			var cos = Vector3.Dot(TowerDirection.normalized, intendedTowerDir.normalized);
-			RotationLerp = Mathf.Clamp01(Time.deltaTime * MAX_ANGLE_SPEED_F / Mathf.Acos(cos));
+			RotationLerp = Mathf.Clamp01(Time.deltaTime * GameCache.Instance.TowerRotationSpeedLimit / Mathf.Acos(cos));
 			TowerDirection = Vector3.Lerp(TowerDirection, intendedTowerDir, RotationLerp).normalized;
 			IsAiming = cos > .99f;
 		}
@@ -163,12 +165,12 @@ public class CannonAutoDriver : IDriverStrategy
 
 			// aiming
 			Debug.DrawLine(
-				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y),
-				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y) + _desc.ToMobDist,
+				_towerController.Position,
+				_towerController.Position + _desc.ToMobDist.ProjectToXZ().ProjectToXZ(0),
 				Color.gray);
 			Debug.DrawLine(
-				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y),
-				_towerController.Position.ProjectToXZ().ProjectToXZ(target.Position.y) + _desc.ToMobPredictDir,
+				_towerController.Position,
+				_towerController.Position + _desc.ToMobPredictDir.ProjectToXZ().ProjectToXZ(0),
 				aimColor);
 		}
 

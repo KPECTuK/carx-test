@@ -4,8 +4,6 @@ using UnityEngine;
 // ReSharper disable once CheckNamespace
 public class Spawner : MonoBehaviourCache
 {
-	private const float INTERVAL_F = 4f;
-
 #pragma warning disable 649
 	[SerializeField] private GameObject _moveTarget;
 	[SerializeField] private GameCache _cache;
@@ -17,7 +15,7 @@ public class Spawner : MonoBehaviourCache
 	private void LateUpdate()
 	{
 		_interval += Time.deltaTime;
-		if(_interval < INTERVAL_F)
+		if(_interval < GameCache.Instance.SpawnInterval)
 		{
 			return;
 		}

@@ -5,19 +5,17 @@ using UnityEngine;
 // ReSharper disable once CheckNamespace
 public class MonsterController : MonoBehaviourCache, IObstacle
 {
-	private const int MAX_HITS_I = 30;
-	private const float SPEED_F = 8f;
-
 	public GameObject Target;
 
 	public Vector3 Position => transform.position;
-	public Vector3 Speed => (Target.transform.position - Position).normalized * SPEED_F;
-	public int CurrentHits { get; private set; }
+	public Vector3 Speed => (Target.transform.position - Position).normalized * GameCache.Instance.MonsterSpeed;
+
+	private int _currentHits;
 
 	public void DealDamage(int hits)
 	{
-		CurrentHits -= hits;
-		if(CurrentHits <= 0)
+		_currentHits -= hits;
+		if(_currentHits <= 0)
 		{
 			GameCache.Instance.PutToCache(this);
 		}
@@ -27,7 +25,7 @@ public class MonsterController : MonoBehaviourCache, IObstacle
 	{
 		base.Resume();
 
-		CurrentHits = MAX_HITS_I;
+		_currentHits = GameCache.Instance.MonsterTotalHist;
 	}
 
 	public override void Suspend()
@@ -41,7 +39,7 @@ public class MonsterController : MonoBehaviourCache, IObstacle
 	}
 
 	// ReSharper disable once UnusedMember.Local
-	private void LateUpdate()
+	private void Update()
 	{
 		if(ReferenceEquals(null, Target))
 		{
@@ -63,8 +61,8 @@ public class MonsterController : MonoBehaviourCache, IObstacle
 		// hit points
 		var leftPoint = transform.position + Vector3.up * 3f + Vector3.left;
 		var rightPoint = transform.position + Vector3.up * 3f + Vector3.right;
-		var full = (leftPoint - rightPoint) * CurrentHits / MAX_HITS_I;
-		var empty = (rightPoint - leftPoint) * (MAX_HITS_I - CurrentHits) / MAX_HITS_I;
+		var full = (leftPoint - rightPoint) * _currentHits / GameCache.Instance.MonsterTotalHist;
+		var empty = (rightPoint - leftPoint) * (GameCache.Instance.MonsterTotalHist - _currentHits) / GameCache.Instance.MonsterTotalHist;
 
 		Debug.DrawLine(rightPoint, rightPoint + full, Color.red);
 		Debug.DrawLine(leftPoint, leftPoint + empty, Color.grey);
