@@ -18,6 +18,7 @@ public class CannonAutoDriver : IDriverStrategy
 		public float Roots;
 		public float RotationLerp;
 		public bool IsAiming;
+		public Vector3 ToPathDistance;
 
 		private readonly Vector3 _cannonOrigin;
 		private readonly Vector3 _projectileSource;
@@ -39,6 +40,7 @@ public class CannonAutoDriver : IDriverStrategy
 			IntersectOpDir = Vector2.zero;
 			ToMobDist = Vector2.zero;
 			ToMobPredictDir = Vector2.zero;
+			ToPathDistance = Vector2.zero;
 			TowerDirection = towerController.transform.forward;
 			CurrentPosLerpFactor = 0f;
 			PredictPosLerpFactor = 0f;
@@ -51,41 +53,32 @@ public class CannonAutoDriver : IDriverStrategy
 		public void ComputeMobDirection()
 		{
 			var toTowerDist = _cannonOrigin - _mobPos;
-			var toPathDist = toTowerDist.Project(_mobSpeed) - toTowerDist;
-			var half = Mathf.Sqrt(_range * _range - toPathDist.sqrMagnitude);
-			IntersectOpDir = toPathDist - _mobSpeed.normalized * half;
-			IntersectCoDir = toPathDist + _mobSpeed.normalized * half;
+			ToPathDistance = toTowerDist.Project(_mobSpeed) - toTowerDist;
+			var half = Mathf.Sqrt(_range * _range - ToPathDistance.sqrMagnitude);
+			IntersectOpDir = ToPathDistance - _mobSpeed.normalized * half;
+			IntersectCoDir = ToPathDistance + _mobSpeed.normalized * half;
 			CurrentPosLerpFactor = Mathf.Sqrt((IntersectCoDir + toTowerDist).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
 			ToMobDist = -toTowerDist;
-		}
 
-		public void ComputeMobPredictionOld()
-		{
-			IntervalTillCollision = (_projectileSpeed - _mobSpeed).ProjectToXZ().magnitude / ToMobDist.ProjectToXZ().magnitude;
-			IntervalTillCollision = (_projectileSpeed - _mobSpeed).magnitude / ToMobDist.magnitude;
-
-			for(var index = 0; index < 100; index++)
-			{
-				ToMobPredictDir = ToMobDist + _mobSpeed.normalized * IntervalTillCollision;
-				IntervalTillCollision = (ToMobPredictDir - _projectileSource).magnitude / _projectileSpeed.magnitude;
-			}
-
-			PredictPosLerpFactor = Mathf.Sqrt((IntersectCoDir - ToMobPredictDir).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
+			// distance to mob path
+			Debug.DrawLine(_cannonOrigin, _cannonOrigin + ToPathDistance, Color.gray);
 		}
 
 		public void ComputeMobPrediction()
 		{
-			var projMobSpd = _mobSpeed.ProjectToXZ();
-			var projProjSpd = -_projectileSpeed.ProjectToXZ();
-			var projToMob = (_mobPos - _projectileSource).ProjectToXZ();
-			var coAngle = Vector2.Dot(projMobSpd.normalized, projProjSpd.normalized);
-
-			IntervalTillCollision = Mathf.Sqrt((projMobSpd.sqrMagnitude + projProjSpd.sqrMagnitude - 2f * coAngle * projMobSpd.magnitude * projProjSpd.magnitude) / projToMob.sqrMagnitude);
-
-			ToMobPredictDir = ToMobDist + _mobSpeed.normalized * IntervalTillCollision;
-			PredictPosLerpFactor = Mathf.Sqrt((IntersectCoDir - ToMobPredictDir).sqrMagnitude / (IntersectCoDir - IntersectOpDir).sqrMagnitude);
+			var rel = _mobSpeed.ProjectToXZ().magnitude / _projectileSpeed.ProjectToXZ().magnitude;
+			var cosA = Vector2.Dot((_projectileSource - _mobPos).ProjectToXZ().normalized, _mobSpeed.ProjectToXZ().normalized);
+			var sinA = Mathf.Sqrt(1f - cosA * cosA);
+			var sinB = sinA * rel;
+			var angleC = Mathf.PI - Mathf.Asin(sinA) - Mathf.Sign(cosA) * Mathf.Asin(sinB);
+			var sinC = Mathf.Sin(angleC);
+			Roots = Mathf.Asin(sinA) * Mathf.Deg2Rad;
+			var prPathProjected = (_projectileSource - _mobPos).ProjectToXZ().magnitude * sinA / sinC;
+			IntervalTillCollision = prPathProjected / _projectileSpeed.magnitude;
+			var mobPredictPos = _mobPos + _mobSpeed * IntervalTillCollision;
+			ToMobPredictDir = (mobPredictPos - _cannonOrigin).ProjectToXZ().ProjectToXZ(_cannonOrigin.y);
 		}
-
+		
 		public void ComputeTowerDirection()
 		{
 			var intendedTowerDir = ToMobPredictDir.ProjectToXZ().ProjectToXZ(0);
@@ -146,12 +139,29 @@ public class CannonAutoDriver : IDriverStrategy
 			_desc.ComputeTowerDirection();
 		}
 
-#if UNITY_EDITOR
+		#if UNITY_EDITOR
 		if(!ReferenceEquals(null, target))
 		{
 			var aimColor = IsAiming
 				? Color.red
 				: Color.gray;
+
+			if(_counter++ % 50 == 0)
+			{
+				// predict time
+				Debug.DrawLine(
+					target.Position + _desc.ToPathDistance.normalized,
+					target.Position + _desc.ToPathDistance.normalized + _desc.ToPathDistance.normalized * _desc.IntervalTillCollision,
+					Color.black,
+					10f);
+
+				// projectile path till collision
+				Debug.DrawLine(
+					_towerController.ShootOrigin.position,
+					_towerController.ShootOrigin.position + _towerController.ProjectileInitialSpeed.ProjectToXZ().ProjectToXZ(_towerController.transform.position.y) * _desc.IntervalTillCollision,
+					Color.white,
+					10f);
+			}
 
 			// target path
 			Debug.DrawLine(
@@ -172,6 +182,12 @@ public class CannonAutoDriver : IDriverStrategy
 				_towerController.Position,
 				_towerController.Position + _desc.ToMobPredictDir.ProjectToXZ().ProjectToXZ(0),
 				aimColor);
+
+			// mob path till collision
+			Debug.DrawLine(
+				target.Position,
+				target.Position + target.Speed * _desc.IntervalTillCollision,
+				Color.white);
 		}
 
 		// tower direction
@@ -182,4 +198,6 @@ public class CannonAutoDriver : IDriverStrategy
 #endif
 		return _desc.TowerDirection;
 	}
+
+	private int _counter;
 }
